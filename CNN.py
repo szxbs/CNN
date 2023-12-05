@@ -177,7 +177,7 @@ class Softmax:
         return dx
 
 
-class ConvoNet:
+class ConvNet:
     '''
     input_dim 单个图片的维度 1通道 20*20大小
     conv_param参数
@@ -211,6 +211,7 @@ class ConvoNet:
         self.layers['Fullconnect'] = Fullconnect(self.params['W2'], self.params['B2'])
         self.last_layer = Softmax()
         self.c = 0
+        self.lr = 0.01
 
     def loss(self, X, Y):
         X = self.predict(X)
@@ -240,15 +241,16 @@ class ConvoNet:
 
         return grads
 
-    def update(self, X, Y):
+    def update(self, X, Y, i):
         grads = self.gradient(X, Y)
-        optimizer = Adam(0.001)
+        self.lr = cosine_decay_with_warmup(i, 0.03, 1000, self.lr, 200, 0)
+        optimizer = Adam(self.lr)
         self.params = optimizer.update(self.params, grads)
 
 
 class Adam:
 
-    def __init__(self, lr=0.001, beta1=0.9, beta2=0.999):
+    def __init__(self, lr=0.01, beta1=0.9, beta2=0.999):
         self.lr = lr
         self.beta1 = beta1
         self.beta2 = beta2
@@ -276,19 +278,28 @@ class Adam:
 
 
 data = np.load("data.npy")
-
+np.random.shuffle(data)
 X = data[:, :-1].reshape(data.shape[0], 1, 20, 20).transpose(0, 1, 3, 2)
 Y = data[:, -1].astype(np.int32)
 (n, _, L, _) = X.shape
 Y = onehotEncoder(Y, 10)
 iterations = 5000
-net = ConvoNet(input_dim=(1, 20, 20),
-               conv_param={'filter_num': 10, 'pad': 0, 'stride': 1, 'filter_size': 3},
-               output_size=10, weight_init_std=0.1)
+net = ConvNet(input_dim=(1, 20, 20),
+              conv_param={'filter_num': 10, 'pad': 0, 'stride': 1, 'filter_size': 3},
+              output_size=10, weight_init_std=0.1)
+acc = 0
 for i in range(iterations):
-    net.update(X, Y)
+    '1'
+    X1 = X[i%5*1000:(i%5+1)*1000]
+    Y1 = Y[i%5*1000:(i%5+1)*1000]
+    '1'
+    net.update(X1, Y1, i)
     #c = net.loss(X, Y)
     Y_hat = net.last_layer.Y
     #print(c)
-    acc = test(Y_hat, Y, i)
+    acc += test(Y_hat, Y1, i)
+    if i % 5 == 0:
+        print(acc/5)
+        acc = 0
+
     #(acc)
